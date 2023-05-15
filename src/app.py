@@ -8,7 +8,7 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User, People, Planet, Vehicle
+from models import db, User, People, Planet, Vehicle, FavoritePeople, FavoritePlanet, FavoriteVehicle
 #from models import Person
 
 app = Flask(__name__)
@@ -246,57 +246,115 @@ def edit_vehicle():
 
     return jsonify(vehicle.serialize()), 200 
 
-#APIS DE FAVORITES -------------------------------------------
+#APIS FAVORITE PEOPLE --------------------------------------------
 @app.route('/add-favorite/people', methods=['POST'])
 def add_favorite_people():
     body = request.get_json()
-    user_id = body["user_id"]
-    people_id = body["people_id"]
+    user_id = body['user_id']
+    people_id = body['people_id']
 
-    character = People.query.get(people_id)
-    if not character:
-        raise APIException('personaje no encontrado', status_code=404)
+    character = People.query.get(people_id) #cuando encuentra el primero, detiene la busqueda => .first()
+    if not character: #validacion de errores, obligatorio
+        raise APIException('Not found', status_code=404)
     
     user = User.query.get(user_id)
     if not user:
-        raise APIException('usuario no encontrado', status_code=404)
+        raise APIException('Favorite People Not Found', status_code=404)
 
-    fav_exist = FavoritePeople.query.filter_by(user_id = user.id, people_id = character.id).first() is not None
+    favorite_exist = FavoritePeople.query.filter_by(user_id = user.id, people_id = character.id).first() is not None
     
-    if fav_exist:
-        raise APIException('el usuario ya lo tiene agregado a favoritos', status_code=404)
+    if favorite_exist:
+        raise APIException('Favorite people already exists in user account', status_code=404)
 
-    favorite_people = FavoritePeople(user_id=user.id, people_id=character.id)
+    favorite_people = FavoritePeople(user_id = user.id, people_id = character.id)
     db.session.add(favorite_people)
     db.session.commit()
 
     return jsonify(favorite_people.serialize()), 201
 
+#APIS FAVORITES PLANET --------------------------------------------
 
+@app.route('/add-favorite/planet', methods=['POST'])
+def add_favorite_planet():
+    body = request.get_json()
+    user_id = body['user_id']
+    planet_id = body['planet_id']
+
+    planet = Planet.query.get(planet_id) #cuando encuentra el primero, detiene la busqueda => .first()
+    if not planet: #validacion de errores, obligatorio
+        raise APIException('Planet not found', status_code=404)
+    
+    user = User.query.get(user_id)
+    if not user:
+        raise APIException('User not found', status_code=404)
+
+    favorite_exist = FavoritePlanet.query.filter_by(user_id = user.id, planet_id = planet.id).first() is not None
+    
+    if favorite_exist:
+        raise APIException('Favorite planet already exists in user account', status_code=404)
+
+    favorite_planet = FavoritePlanet(user_id = user.id, planet_id = planet.id)
+    db.session.add(favorite_planet)
+    db.session.commit()
+
+    return jsonify(favorite_planet.serialize()), 201
+
+#APIS FAVORITES VEHICLE --------------------------------------------
+
+@app.route('/add-favorite/vehicle', methods=['POST'])
+def add_favorite_vehicle():
+    body = request.get_json()
+    user_id = body['user_id']
+    vehicle_id = body['vehicle_id']
+
+    vehicle = Vehicle.query.get(vehicle_id) #cuando encuentra el primero, detiene la busqueda => .first()
+    if not vehicle: #validacion de errores, obligatorio
+        raise APIException('Vehicle not found', status_code=404)
+    
+    user = User.query.get(user_id)
+    if not user:
+        raise APIException('User not found', status_code=404)
+
+    favorite_exist = FavoriteVehicle.query.filter_by(user_id = user.id, vehicle_id = vehicle.id).first() is not None
+    
+    if favorite_exist:
+        raise APIException('Favorite vehicle already exists in user account', status_code=404)
+
+    favorite_vehicle = FavoriteVehicle(user_id = user.id, vehicle_id = vehicle.id)
+    db.session.add(favorite_vehicle)
+    db.session.commit()
+
+    return jsonify(favorite_vehicle.serialize()), 201
+
+#APIS FAVORITES ALL --------------------------------------------
 @app.route('/favorites', methods=['POST'])
 def list_favorites():
     body = request.get_json()
     user_id = body["user_id"]
-    if not user_id:
-        raise APIException('faltan datos', status_code=404)
-    
-    user = User.query.get(user_id)
-    if not user:
-        raise APIException('usuario no encontrado', status_code=404)
 
-    user_favorites = FavoritePeople.query.filter_by(user_id=user.id).all()    
+    if not user_id:
+        raise APIException('Data missing', status_code=404)
+
+    user = User.query.get(user_id)
+
+    if not user:
+        raise APIException('User not found', status_code=404)
+
+    user_favorites = FavoritePeople.query.filter_by(user_id = user.id).all() #nos devuelve todas las coincidencias
     user_favorites_final = list(map(lambda item: item.serialize(), user_favorites))
 
-    #user_favorites_planets = FavoritePlanets.query.filter_by(user_id=user.id).all()
-    #user_favorites_final_planets = list(map(lambda item: item.serialize(), user_favorites_planets))
+    user_favorites_planets = FavoritePlanet.query.filter_by(user_id = user.id).all()
+    user_favorites_final_planets = list(map(lambda item: item.serialize(), user_favorites_planets))
 
-
-    #user_favorites_final = user_favorites_final + user_favorites_final_planets + user_favorites_final_vehicles
-
-    return jsonify(user_favorites_final), 200
+    user_favorites_vehicle = FavoriteVehicle.query.filter_by(user_id = user.id).all()
+    user_favorites_final_vehicle = list(map(lambda item: item.serialize(), user_favorites_vehicle))
     
+    user_favorites_final = user_favorites_final + user_favorites_final_planets + user_favorites_final_vehicle
+
+    return jsonify(user_favorites_final), 201
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
     PORT = int(os.environ.get('PORT', 3000))
     app.run(host='0.0.0.0', port=PORT, debug=False)
+
